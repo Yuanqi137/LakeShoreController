@@ -10,7 +10,14 @@ This is a simple GUI for Lake Shore temperature (heater) controllers using seria
 
 ### Basic Starting Guide
 * Open `CtrlGUI_LS336.mlapp` in MATLAB&reg; App Designer.
-* In App Designer's *Code View* change app/class properties `N_Heater` and `N_TempSensor` to numbers of heaters and temperature sensors connected respectively.
+* In App Designer's *Code View* change app/class properties `N_Heater` and `N_TempSensor` to numbers of heaters and temperature sensors connected respectively. For instance, if you have 2 heater outputs and 4 temperature sensor inputs,
+    
+      properties (Access = public)
+        N_Heater = 2;
+        N_TempSensor = 4;
+        ...
+      end
+    
 * Run!
 * In GUI, input correct serial port name (e.g. "COM1") and start the connection by turn on the switch.
 * Enjoy!
