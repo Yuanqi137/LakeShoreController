@@ -1,4 +1,4 @@
-# Lake Shore Temperature Controller
+# MATLAB&reg; GUI for Lake Shore Cryogenic Temperature Controller
 
 Developed by *Yuanqi Lyu* ([yuanqilyu@berkeley.edu](mailto:yuanqilyu@berkeley.edu)) at UC Berkeley.
 
