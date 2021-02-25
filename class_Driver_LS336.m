@@ -14,8 +14,9 @@
 % Lake Shore> support website.
 % * *Standard disclaimer*: there is no spelling check function for the
 % comments.
+% * This script and its corresponding project is available on 
+% <https://github.com/Yuanqi137/LakeShoreController GitHub>.
 %
-%%
 
 classdef class_Driver_LS336 < handle
     %%%

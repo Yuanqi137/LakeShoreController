@@ -10,7 +10,10 @@
 % 2021.
 % * *Standard disclaimer*: there is no spelling check function for the
 % comments.
+% * This script and its corresponding project is available on 
+% <https://github.com/Yuanqi137/LakeShoreController GitHub>.
 %
+
 classdef class_Utility_LS336 < handle
     %%%
     % This is a MATLAB handle class
