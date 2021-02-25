@@ -1,14 +1,14 @@
 # Lake Shore Temperature Controller
 
-Developed by *Yuanqi Lyu* <yuanqilyu@berkeley.edu> at UC Berkeley.
+Developed by *Yuanqi Lyu* ([yuanqilyu@berkeley.edu](mailto:yuanqilyu@berkeley.edu)) at UC Berkeley.
 
 This is a simple GUI for Lake Shore temperature (heater) controllers using serial connection.
 
 ### Compatibility
 * Tested on MATLAB&reg; 2020b.
-* Tested on Lake Shore 336 and Lake Shore 335; should also work for other Lake Shore controllers with similar serial interface commands.
+* Tested on [Lake Shore&reg; Model 336 Cryogenic Temperature Controller](https://www.lakeshore.com/products/categories/overview/temperature-products/cryogenic-temperature-controllers/model-336-cryogenic-temperature-controller); should also work for other Lake Shore controllers with similar serial interface commands.
 
-### Basic Start Guide
+### Basic Starting Guide
 * Open `CtrlGUI_LS336.mlapp` in MATLAB&reg; App Designer.
 * In App Designer's *Code View* change app/class properties `N_Heater` and `N_TempSensor` to numbers of heaters and temperature sensors connected respectively.
 * Run!
