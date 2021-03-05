@@ -29,7 +29,28 @@ classdef class_Utility_LS336 < handle
         % to the file.
         
     end
-    properties (Access = public)    
+    properties (Access = public)
+        Conf = struct( ...
+            'SerialPort_Name', 'COM5', ...
+            'N_Heater', 2, ...
+            'N_TempSensor', 2, ...
+            'Log_Path', 'Data',...
+            'Temp_LimLower', 0, ...
+            'Temp_LimUpper', 370);
+        %%%
+        % *Conf* (_struct_):
+        % The configurtion of the app. It is saved between opening and
+        % closing of the app.
+        % 
+        % * _SerialPort_Name_ (_string_):
+        % Name of the serial port.
+        % * _N_Heater_ and _N_TempSensor_ (_double_):
+        % Number of heaters and temperature sensors connected to the heater
+        % controller.
+        % * _Log_Path_ (_string_):
+        % File path of the log file.
+        %
+        
         Driver
         %%%
         % *Driver* (_class_):
@@ -50,30 +71,43 @@ classdef class_Utility_LS336 < handle
         % (<https://www.mathworks.com/help/matlab/matlab_prog/use-a-matlab-timer-object.html
         % ref>)
         
-        Heater_Percentage_Plot = [];
-        Heater_Percentage_Buffer = [];
-        Temp_Plot = [];
-        Temp_Buffer = [];
-        Time_Plot = [];
-        Time_Buffer = [];
+        Data = struct( ...
+            'Heater_Percentage_Plot', [], ...
+            'Heater_Percentage_Buffer', [], ...
+            'Temp_Plot', [], ...
+            'Temp_Buffer', [], ...
+            'Time_Plot', [], ...
+            'Time_Buffer', []);
+        
         %%%
-        % *Heater_Percentage_Plot*, *Temp_Plot* (_double (matrix)_):
-        % Matrix of heater percentages and temperatures to be plotted.
+        % *Data* (_struct_):
+        % Data temporarily stored in the class instance.
         %
-        % *Heater_Percentage_Buffer*, *Temp_Buffer* (_double (matrix)_):
+        % * _Heater_Percentage_Plot_, _Temp_Plot_ (_double (matrix)_):
+        % Matrix of heater percentages and temperatures to be plotted.
+        % * _Heater_Percentage_Buffer_, _Temp_Buffer_ (_double (matrix)_):
         % Matrix of heater percentages and temperatures to be stored once
         % property N_Counter reaches a multiple of property N_Buffer.
-        
-        Clear_Plot = 0;
-        Log_On = 0;
-        Log_Stopped = 0;
-        %%%
-        % *Clear_Plot* (_logic_):
-        % Logical flag set when the Clear Plot button is pushed.
+        % * _Time_Buffer_, _Time_Plots_ (_double (matrix)_):
+        % Matrix of time values (i.e. the output of now() function, the
+        % number of seconds since Jan/01/1970 00:00 UTC) for buffer and
+        % plots.
         %
-        % *Log_On* and *Log_Stopped* (_logic_):
+        
+        Flag = struct( ...
+            'Clear_Plot', 0, ...
+            'Log_On', 0, ...
+            'Log_Stopped', 0 );
+        %%%
+        % *Flag* (_struct_):
+        % Logical flags for to determine whether to activate functions.
+        %
+        % * _Clear_Plot_ (_logic_):
+        % Logical flag set when the Clear Plot button is pushed.
+        % * _Log_On_ and _Log_Stopped_ (_logic_):
         % Logical flags set when data logging is on or stopped by user
         % control.
+        %
         
     end
     %% *METHODS*
@@ -84,20 +118,22 @@ classdef class_Utility_LS336 < handle
         
         function obj = class_Utility_LS336(In_CtrlGUI)
             obj.CtrlGUI = In_CtrlGUI;
-            if obj.CtrlGUI.N_Heater == 1
+            obj.load_Conf();
+            
+            if obj.Conf.N_Heater == 1
                 obj.CtrlGUI.Heater2LevelDropDown.Visible = 'off';
                 obj.CtrlGUI.Heater2LevelDropDownLabel.Visible = 'off';
                 obj.CtrlGUI.Heater2Lamp.Visible = 'off';
                 obj.CtrlGUI.Heater2LampLabel.Visible = 'off';
                 obj.CtrlGUI.HeaterPercentageEditFieldLabel.Visible = 'off';
             end
-            if obj.CtrlGUI.N_TempSensor == 1
+            if obj.Conf.N_TempSensor == 1
                 obj.CtrlGUI.TempCurrentEditFieldLabel.Visible = 'off';
             end
             %%%
             % Hide extra heater settings if there is only one heater
             % connected.
-            if ~ispc()
+            if ismac()
                 obj.CtrlGUI.LogFileFolderEditField.Value = "~/Documents";
                 obj.CtrlGUI.GoToFolderButton.Visible = 'off';
                 obj.CtrlGUI.FileMenu.Visible = 'off';
@@ -126,6 +162,7 @@ classdef class_Utility_LS336 < handle
                 obj.disconnect_Controller();
             end
             delete(obj.Timer);
+            obj.save_Conf();
         end
         
         %% Enable All App Controls
@@ -178,10 +215,12 @@ classdef class_Utility_LS336 < handle
         % instance of class_Driver_LS336 class.
         
         function connect_Controller(obj)
+            obj.Conf.SerialPort_Name ...
+                = obj.CtrlGUI.SerialPortEditField.Value;
             try
                 obj.Driver = class_Driver_LS336( ...
-                    obj.CtrlGUI.SerialPortEditField.Value, ...
-                    obj.CtrlGUI.N_Heater, obj.CtrlGUI.N_TempSensor);
+                    obj.Conf.SerialPort_Name, ...
+                    obj.Conf.N_Heater, obj.Conf.N_TempSensor);
                 if all(obj.Driver.ErrCode == 0)
                     obj.update_CurrentSettingsPanel();
                     obj.update_UserInputsPanel();
@@ -206,20 +245,56 @@ classdef class_Utility_LS336 < handle
         
         %% Disonnect Heater Controller
         % This function disconnects the heater controller by first
-        % terminating the serial connection, then delete the Driver class
-        % all together.
+        % terminating the timer and serial connection, then delete the 
+        % Driver class instance all together.
         
         function disconnect_Controller(obj)
             obj.Timer.stop();
-            if obj.Log_On == 1
+            if obj.Flag.Log_On || obj.Flag.Log_Stopped
                 obj.log_Data();
                 obj.CtrlGUI.LoggingOnOffSwitch.Value = 'Off';
-                obj.Log_On = 0;
+                obj.Flag.Log_On = 0;
+                obj.Flag.Log_Stopped = 0;
             end
             
             obj.Driver.terminate_SerialPort();
             obj.Driver.delete();
             obj.disable_Controls();
+        end
+        
+        %% Load App Configurations
+        % This function loads app configurations from "Config.txt" in the
+        % same folder of the app.
+        
+        function load_Conf(obj)
+            if exist('Config.txt', 'file')
+                cell = readcell('Config.txt');
+                obj.Conf = cell2struct(cell(:, 2), cell(:, 1));
+            end
+            obj.CtrlGUI.SerialPortEditField.Value ...
+                = obj.Conf.SerialPort_Name;
+            obj.CtrlGUI.LogFileFolderEditField.Value ...
+                = obj.Conf.Log_Path;
+            
+            temp_limits = sort( ...
+                [obj.Conf.Temp_LimLower, obj.Conf.Temp_LimUpper]);
+            temp_value = mean(temp_limits);
+            obj.CtrlGUI.TargetTempKSpinner.Limits = temp_limits;
+            obj.CtrlGUI.TargetTempKSpinner.Value = temp_value;
+            obj.CtrlGUI.CurrentTempGauge.Limits = temp_limits;
+            %%%
+            % Set the limits of temperature gauge and target teperature
+            % spinner to user specified values.
+        end
+        
+        %% Load App Configurations
+        % This function loads app configurations from "Config.txt" in the
+        % same folder of the app.
+        
+        function save_Conf(obj)
+            writecell([fieldnames(obj.Conf), struct2cell(obj.Conf)], ...
+                'Config.txt', ...
+                'Delimiter', 'tab');
         end
         
         %% Send Settings to Heater Controller
@@ -301,7 +376,8 @@ classdef class_Utility_LS336 < handle
             heater_MaxUserCurrent = max(heater_MaxUserCurrent);
             obj.CtrlGUI.MaxCurrentAEditField.Value = heater_MaxUserCurrent;
             
-            heater_Lamp_Color = obj.heaterLevel2Color(obj.Driver.Heater_Level);
+            heater_Lamp_Color = obj.heaterLevel2Color( ...
+                obj.Driver.Heater_Level);
             obj.CtrlGUI.Heater1Lamp.Color = heater_Lamp_Color(1, :);
             obj.CtrlGUI.Heater2Lamp.Color = heater_Lamp_Color(2, :);
             
@@ -364,11 +440,36 @@ classdef class_Utility_LS336 < handle
         
         function timerFunc(obj, ~, ~)
             %%%
-            % There has to be two inputs for timer function.
+            % There has to be two inputs for timer function, even not used.
+            
             plot_Length = obj.CtrlGUI.MaxPlottingPointsSpinner.Value;
-            [~, heater_Percentage] = obj.Driver.get_HeaterPercentage();
-            [~, temp] = obj.Driver.get_Temp( ...
-                char(64 + (1 : obj.Driver.N_TempSensor)));
+            try
+                [~, heater_Percentage] = obj.Driver.get_HeaterPercentage();
+                [~, temp] = obj.Driver.get_Temp( ...
+                    char(64 + (1 : obj.Driver.N_TempSensor)));
+            catch errMsg
+                msgboxStyle.Interpreter = 'tex';
+                msgboxStyle.WindowStyle = 'modal';
+                msgbox({'\fontsize{10}{\bfFailed to fetch data!}', ... 
+                    'Retrying now!'}, ...
+                    'ERROR - Lake Shore 336', 'warn', msgboxStyle);
+                warning(errMsg.message)
+                try 
+                    [~, heater_Percentage] ...
+                        = obj.Driver.get_HeaterPercentage();
+                    [~, temp] = obj.Driver.get_Temp( ...
+                    char(64 + (1 : obj.Driver.N_TempSensor)));
+                catch errMsg
+                    msgbox({'\fontsize{10}{\bfFailed to fetch data!}', ... 
+                    'Please reconnect the controller manually!'}, ...
+                    'ERROR - Lake Shore 336', 'warn', msgboxStyle);
+                    obj.timerErrFunc();
+                    rethrow(errMsg);                    
+                end
+            end
+            %%%
+            % Just try a few times to obtain the current temperatures and
+            % heater percentages before giving up due to error.
             
             obj.CtrlGUI.HeaterPercentageEditField.Value ...
                 = mean(heater_Percentage);
@@ -379,22 +480,23 @@ classdef class_Utility_LS336 < handle
             %%%
             % Set values to the gauges and text fields in GUI.
             
-            obj.Time_Buffer = [obj.Time_Buffer; now];
-            obj.Heater_Percentage_Buffer ...
-                = [obj.Heater_Percentage_Buffer; heater_Percentage];
-            obj.Temp_Buffer = [obj.Temp_Buffer; temp];
+            obj.Data.Time_Buffer = [obj.Data.Time_Buffer; now];
+            obj.Data.Heater_Percentage_Buffer ...
+                = [obj.Data.Heater_Percentage_Buffer; heater_Percentage];
+            obj.Data.Temp_Buffer = [obj.Data.Temp_Buffer; temp];
             
-            if (obj.Log_On && (length(obj.Time_Buffer) >= obj.N_Buffer)) ...
-                    || obj.Log_Stopped
+            if (obj.Flag.Log_On ...
+                    && (length(obj.Data.Time_Buffer) >= obj.N_Buffer)) ...
+                    || obj.Flag.Log_Stopped
                 obj.log_Data();
-            elseif length(obj.Time_Buffer) > obj.N_Buffer
-                obj.Time_Buffer ...
-                    = obj.Time_Buffer(end + 1 - obj.N_Buffer : end);
-                obj.Heater_Percentage_Buffer ...
-                    = obj.Heater_Percentage_Buffer( ...
+            elseif length(obj.Data.Time_Buffer) > obj.N_Buffer
+                obj.Data.Time_Buffer ...
+                    = obj.Data.Time_Buffer(end + 1 - obj.N_Buffer : end);
+                obj.Data.Heater_Percentage_Buffer ...
+                    = obj.Data.Heater_Percentage_Buffer( ...
                     end + 1 - obj.N_Buffer : end, :);
-                obj.Temp_Buffer ...
-                    = obj.Temp_Buffer(end + 1 - obj.N_Buffer : end);
+                obj.Data.Temp_Buffer ...
+                    = obj.Data.Temp_Buffer(end + 1 - obj.N_Buffer : end);
             end
             %%%
             % Log the data if: 
@@ -410,44 +512,46 @@ classdef class_Utility_LS336 < handle
             % Else, trim the data if it is longer than N_Buffer so that
             % there are always N_Buffer lines left.
             
-            obj.Time_Plot = [obj.Time_Plot; now];
-            obj.Heater_Percentage_Plot ...
-                = [obj.Heater_Percentage_Plot; heater_Percentage];
-            obj.Temp_Plot = [obj.Temp_Plot; temp];
+            obj.Data.Time_Plot = [obj.Data.Time_Plot; now];
+            obj.Data.Heater_Percentage_Plot ...
+                = [obj.Data.Heater_Percentage_Plot; heater_Percentage];
+            obj.Data.Temp_Plot = [obj.Data.Temp_Plot; temp];
             
-            if length(obj.Time_Plot) > plot_Length
-                obj.Time_Plot = obj.Time_Plot(end + 1 - plot_Length : end);
-                obj.Heater_Percentage_Plot ...
-                    = obj.Heater_Percentage_Plot( ...
+            if length(obj.Data.Time_Plot) > plot_Length
+                obj.Data.Time_Plot ...
+                    = obj.Data.Time_Plot(end + 1 - plot_Length : end);
+                obj.Data.Heater_Percentage_Plot ...
+                    = obj.Data.Heater_Percentage_Plot( ...
                     end + 1 - plot_Length : end, :);
-                obj.Temp_Plot ...
-                    = obj.Temp_Plot(end + 1 - plot_Length : end, :);
+                obj.Data.Temp_Plot ...
+                    = obj.Data.Temp_Plot(end + 1 - plot_Length : end, :);
             end
             %%%
             % Trim the data to be plotted to match the length specified in
             % GUI.
-            if obj.Clear_Plot == 1
+            if obj.Flag.Clear_Plot == 1
                 cla(obj.CtrlGUI.HeaterPercentageUIAxes);
                 cla(obj.CtrlGUI.TempCurrentUIAxes);
                 %%%
                 % Clear the axes.
                 
-                obj.Time_Plot = [];
-                obj.Heater_Percentage_Plot = [];
-                obj.Temp_Plot = [];
-                obj.Clear_Plot = 0;
+                obj.Data.Time_Plot = [];
+                obj.Data.Heater_Percentage_Plot = [];
+                obj.Data.Temp_Plot = [];
+                obj.Flag.Clear_Plot = 0;
                 %%%
                 % Reset the flag.
             end
             %%%
             % Clear the plot if the flag Clear_Plot is set.
             
-            if length(obj.Time_Plot) > 1
+            if length(obj.Data.Time_Plot) > 1
                 obj.plot_Format(obj.CtrlGUI.HeaterPercentageUIAxes, ...
-                    obj.Time_Plot, obj.Heater_Percentage_Plot, ...
+                    obj.Data.Time_Plot, ...
+                    obj.Data.Heater_Percentage_Plot, ...
                     'HeaterPercentage');
                 obj.plot_Format(obj.CtrlGUI.TempCurrentUIAxes, ...
-                    obj.Time_Plot, obj.Temp_Plot, ...
+                    obj.Data.Time_Plot, obj.Data.Temp_Plot, ...
                     'Temp');
             end
             %%%
@@ -462,20 +566,18 @@ classdef class_Utility_LS336 < handle
         end
         
         %% Timer Error Function
-        % This function runs when there is an unresolved error happens when
-        % evaluating the timer function.
+        % This function is caller automatically when there is an unresolved
+        % error happens when evaluating the timer function obj.timerFunc(),
+        % or it is explicitly inside timer function following other
+        % criteria.
         
         function timerErrFunc(obj, ~, ~)
-            obj.Timer.stop();
+            obj.disconnect_Controller()
             obj.CtrlGUI.ErrorStatLamp.Color = [1.00, 0.00, 0.00];
-            if obj.Log_On == 1
-                obj.log_Data();
-            end
-            obj.CtrlGUI.LoggingOnOffSwitch.Value = 'Off';
-            obj.Log_On = 0;
+            
             %%%
-            % Set Error Stat. lamp to red, store the timer and save the
-            % data if logging is on.
+            % Set Error Stat. lamp to red, and try to disconnect the heater
+            % controller for protection.
             
         end
         
@@ -502,10 +604,10 @@ classdef class_Utility_LS336 < handle
         function update_LogStatus(obj, In_Event)
             switch In_Event.Value
                 case 'On'
-                    obj.Log_On = 1;
+                    obj.Flag.Log_On = 1;
                 case 'Off'
-                    obj.Log_Stopped = 1;
-                    obj.Log_On = 0;
+                    obj.Flag.Log_Stopped = 1;
+                    obj.Flag.Log_On = 0;
             end
         end
         
@@ -514,18 +616,19 @@ classdef class_Utility_LS336 < handle
         % specified in LogFileFolderEditFieldif it does not already exist.
         
         function create_Folder(obj)
-            path = obj.CtrlGUI.LogFileFolderEditField.Value;
-            if exist(path, 'dir') == 0
+            obj.Conf.Log_Path = obj.CtrlGUI.LogFileFolderEditField.Value;
+            if exist(obj.Conf.Log_Path, 'dir') == 0
                 msgboxStyle.Interpreter = 'tex';
                 msgboxStyle.WindowStyle = 'modal';
                 msgbox({'\fontsize{10}{\bfFolder does not exist!}', ... 
                     'Creating the folder now!'}, ...
                     'ERROR - Lake Shore 336', 'warn', msgboxStyle);
                 try 
-                    mkdir(path)
+                    mkdir(obj.Conf.Log_Path)
                 catch errMsg
-                    mkdir(pwd)
-                    obj.CtrlGUI.LogFileFolderEditField.Value = pwd;
+                    obj.Conf.Log_Path = pwd;
+                    obj.CtrlGUI.LogFileFolderEditField.Value ...
+                        = obj.Conf.Log_Path;
                     msgbox({['\fontsize{10}{\bfFolder cannot be! ', ... 
                         'created!}'], ...
                         'Data will be stored in current folder'}, ...
@@ -541,16 +644,13 @@ classdef class_Utility_LS336 < handle
         
         function create_LogFile(obj)
             obj.create_Folder();
-            path = [obj.CtrlGUI.LogFileFolderEditField.Value, '\', ...
-                datestr(now, 'yyyy-mm-dd'), '.txt'];
+            path = fullfile(obj.Conf.Log_Path, ...
+                [datestr(now, 'yyyy-mm-dd'), '.txt']);
             if exist(path, 'file') == 0
-                fileID = fopen(path, 'wb');
-                fclose(fileID);
-                
                 head = ['DateTime', ...
                     string( ...
-                    char(64 + transpose(1 : obj.CtrlGUI.N_TempSensor)))', ...
-                    string(1 : obj.CtrlGUI.N_Heater)];
+                    char(64 + transpose(1 : obj.Conf.N_TempSensor)))', ...
+                    string(1 : obj.Conf.N_Heater)];
                 writematrix(head, path, 'Delimiter', 'tab');
                 %%%
                 % Create the file and write the head line.
@@ -564,11 +664,11 @@ classdef class_Utility_LS336 < handle
         function log_Data(obj)
             obj.create_LogFile();
             
-            path = [obj.CtrlGUI.LogFileFolderEditField.Value, '\', ...
-                datestr(now, 'yyyy-mm-dd'), '.txt'];
-            data = [datestr(obj.Time_Buffer), ...
-                string(obj.Temp_Buffer), ...
-                string(obj.Heater_Percentage_Buffer)];
+            path = fullfile(obj.Conf.Log_Path, ...
+                [datestr(now, 'yyyy-mm-dd'), '.txt']);
+            data = [datestr(obj.Data.Time_Buffer), ...
+                string(obj.Data.Temp_Buffer), ...
+                string(obj.Data.Heater_Percentage_Buffer)];
             try
                 writematrix(data, path, ...
                     'Delimiter', 'tab', 'WriteMode', 'append');
@@ -582,13 +682,13 @@ classdef class_Utility_LS336 < handle
                     'Delimiter', 'tab', 'WriteMode', 'append');
             end
             
-            obj.Time_Buffer = [];
-            obj.Temp_Buffer = [];
-            obj.Heater_Percentage_Buffer = [];
+            obj.Data.Time_Buffer = [];
+            obj.Data.Temp_Buffer = [];
+            obj.Data.Heater_Percentage_Buffer = [];
             %%%
             % Write data and clear buffers.
             
-            obj.Log_Stopped = 0;
+            obj.Flag.Log_Stopped = 0;
             %%%
             % Reset the Log_Stopped flag.
         end
@@ -599,9 +699,8 @@ classdef class_Utility_LS336 < handle
         
         function goto_Folder(obj)
             obj.create_Folder();
-            path = obj.CtrlGUI.LogFileFolderEditField.Value;
             if ispc()
-                winopen(path)
+                winopen(obj.Conf.Log_Path)
             else
                 msgboxStyle.Interpreter = 'tex';
                 msgboxStyle.WindowStyle = 'modal';
@@ -617,8 +716,8 @@ classdef class_Utility_LS336 < handle
         
         function goto_LogFile(obj)
             obj.create_LogFile();
-            path = [obj.CtrlGUI.LogFileFolderEditField.Value, '\', ...
-                datestr(now, 'yyyy-mm-dd'), '.txt'];
+            path = fullfile(obj.Conf.Log_Path, ...
+                [datestr(now, 'yyyy-mm-dd'), '.txt']);
             if ispc()
                 try
                     winopen(path)
@@ -640,7 +739,7 @@ classdef class_Utility_LS336 < handle
         % Clear the plots when Clear Plot button is pushed.
         
         function clear_Plot(obj)
-            obj.Clear_Plot = 1;
+            obj.Flag.Clear_Plot = 1;
             %%%
             % Set the flag.            
         end
@@ -749,6 +848,10 @@ classdef class_Utility_LS336 < handle
             In_Axes.XAxis.TickLabelRotation = 60;
             
             if range(In_Time) < 1 / 24
+                %%%
+                % If less than an hour, label plot use minutes and seconds
+                % only.
+                
                 datetick(In_Axes, 'x', 'MM:SS')
                 In_Axes.XLabel.String = "Time (MM:SS)";
             elseif range(In_Time) < 1
