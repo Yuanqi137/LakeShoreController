@@ -1,0 +1,6 @@
+SerialPort_Name	COM5
+N_Heater	2
+N_TempSensor	2
+Log_Path	Data
+Temp_LimLower	0
+Temp_LimUpper	370
