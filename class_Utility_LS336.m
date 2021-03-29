@@ -617,7 +617,7 @@ classdef class_Utility_LS336 < handle
         
         function create_Folder(obj)
             obj.Conf.Log_Path = obj.CtrlGUI.LogFileFolderEditField.Value;
-            if exist(obj.Conf.Log_Path, 'dir') == 0
+            if ~isfolder(obj.Conf.Log_Path)
                 msgboxStyle.Interpreter = 'tex';
                 msgboxStyle.WindowStyle = 'modal';
                 msgbox({'\fontsize{10}{\bfFolder does not exist!}', ... 
@@ -646,7 +646,7 @@ classdef class_Utility_LS336 < handle
             obj.create_Folder();
             path = fullfile(obj.Conf.Log_Path, ...
                 [datestr(now, 'yyyy-mm-dd'), '.txt']);
-            if exist(path, 'file') == 0
+            if ~isfile(path)
                 head = ['DateTime', ...
                     string( ...
                     char(64 + transpose(1 : obj.Conf.N_TempSensor)))', ...
