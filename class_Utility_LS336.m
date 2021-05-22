@@ -755,7 +755,7 @@ classdef class_Utility_LS336 < handle
                 = heaterLevel2Color(~, In_Heater_Level)
             Out_Heater_Lamp_Color = zeros(2, 3);
             for n = 1 : length(In_Heater_Level)
-                switch In_Heater_Level
+                switch In_Heater_Level(n)
                     case 0
                         Out_Heater_Lamp_Color(n, :) = [1.00, 1.00, 1.00];
                     case 1
@@ -780,7 +780,7 @@ classdef class_Utility_LS336 < handle
                 = heaterLevel2Text(~, In_Heater_Level)
             Out_Heater_Level_Text = ["Off", "Off"];
             for n = 1 : length(In_Heater_Level)
-                switch In_Heater_Level
+                switch In_Heater_Level(n)
                     case 0
                         Out_Heater_Level_Text(n) = "Off";
                     case 1
